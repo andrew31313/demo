@@ -1,49 +1,40 @@
 ---
 # Configure VirtualBox HostOnly Interfaces
 - name: Get the list of hostonly network interfaces
-  shell: set -o pipefail && VBoxManage list hostonlyifs | awk '/^Name:/ { print $2 }'
+  ansible.builtin.shell: set -o pipefail && VBoxManage list hostonlyifs | awk '/^Name:/ { print $2 }'
   args:
     executable: "{{ ansible_user_shell }}"
   changed_when: false
   register: existing_hostonlyifs
-- debug:
-    var: "{{ hostonlyifs | json_query('[*].name') }}"
-- name: Ensure vboxnetX hostonly network interfaces exist
-  command: VBoxManage hostonlyif create
-  when: item not in existing_hostonlyifs.stdout_lines
-  with_items: "{{ hostonlyifs | json_query('[*].name') }}"
-- name: Get the enabled status of the hostonly network interfaces
-  shell: set -o pipefail && VBoxManage list hostonlyifs |awk '/^Name:/ { INTERFACE=$2 }; /^Status:.*Up/ { print INTERFACE }'
-  args:
-    executable: "{{ ansible_user_shell }}"
-  changed_when: false
-  register: hostonlyifs_status
-- name: Ensure hostonly network interfaces are configured
-  command: "VBoxManage hostonlyif ipconfig {{ item.name }} --ip {{ item.ip }}"
+- name: Loop through defined host-only interfaces
+  ansible.builtin.include_tasks: virtualbox-hostonlyif-create.yml
+  when: hostonlyif.name not in existing_hostonlyifs.stdout_lines
   loop: "{{ hostonlyifs }}"
-  when: item.name not in hostonlyifs_status.stdout_lines
+  loop_control:
+    loop_var: hostonlyif
+    label: hostonlyif.name
 # Configure VirtualBox NAT Networks
 - name: Get a list of existing natnetworks
-  shell: "set -o pipefail && VBoxManage list natnetworks | sed -n -e '/^NetworkName:/s/^NetworkName: *//p'"
+  ansible.builtin.shell: "set -o pipefail && VBoxManage list natnetworks | sed -n -e '/^NetworkName:/s/^NetworkName: *//p'"
   args:
     executable: "{{ ansible_user_shell }}"
   changed_when: false
   register: natnets
 - name: Ensure all NAT networks have been configured
-  include_tasks: "virtualbox-configure-natnetwork.yml"
+  ansible.builtin.include_tasks: "virtualbox-configure-natnetwork.yml"
   vars:
     vnet: "{{ item }}"
   loop: "{{ natnetworks }}"
 # Configure VirtualBox DHCP Servers
 - name: Get the list of DHCP servers
-  shell: set -o pipefail && VBoxManage list dhcpservers | awk '/^NetworkName:/ { gsub(/HostInterfaceNetworking-/, "", $2); print $2 }'
+  ansible.builtin.shell: set -o pipefail && VBoxManage list dhcpservers | awk '/^NetworkName:/ { gsub(/HostInterfaceNetworking-/, "", $2); print $2 }'
   args:
     executable: "{{ ansible_user_shell }}"
   changed_when: false
   failed_when: false
   register: existing_dhcpservers
 - name: Ensure hostonly DHCP servers exist
-  command: >
+  ansible.builtin.command: >
     VBoxManage dhcpserver add --interface {{ item.interface }}
     --server-ip {{ item.server_ip }}
     --netmask {{ item.netmask }}

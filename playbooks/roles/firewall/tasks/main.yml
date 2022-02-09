@@ -1,0 +1,8 @@
+---
+- name: Ensure NAT to Internet is enabled
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    out_interface: eth1
+    jump: MASQUERADE
+  become: yes

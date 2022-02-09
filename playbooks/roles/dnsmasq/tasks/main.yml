@@ -1,0 +1,23 @@
+---
+- name: Ensure the dnsmasq package is installed
+  ansible.builtin.package:
+    name: dnsmasq
+    state: present
+  become: yes
+- name: Ensure the dnsmasq config file is current
+  ansible.builtin.template:
+    dest: /etc/dnsmasq.d/{{ ansible_hostname }}.conf
+    src: "{{ ansible_hostname }}.conf.j2"
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  notify: reload_dnsmasq
+- name: Ensure runit support for dnsmasq is installed and enabled
+  ansible.builtin.include_role:
+    name: runit-service
+  vars:
+    service:
+      name: dnsmasq
+      startcmd: "/usr/sbin/dnsmasq -d"
+      enabled: true

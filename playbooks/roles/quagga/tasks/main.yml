@@ -1,0 +1,93 @@
+---
+- name: Ensure the quagga packages are installed
+  ansible.builtin.package:
+    name: quagga
+    state: present
+  become: yes
+- name: Ensure quaggavty group exists (Alpine)
+  ansible.builtin.group:
+    name: quaggavty
+    state: present
+  become: yes
+  when: ansible_distribution == 'Alpine'
+- name: Ensure directories for quagga exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: quagga
+    group: "{{ item.group }}"
+    mode: '0775'
+  become: yes
+  loop:
+    - { path: /etc/network/quagga, group: quaggavty }
+    - { path: /run/quagga, group: quagga }
+- name: Ensure there is a link back to the expected location for quagga configs
+  ansible.builtin.file:
+    path: /etc/quagga
+    src: /etc/network/quagga
+    state: link
+    force: yes
+    owner: quagga
+    group: quaggavty
+    mode: '0775'
+  become: yes
+- name: Ensure /etc/defaults directory exists
+  ansible.builtin.file:
+    path: /etc/defaults
+    state: directory
+    owner: root
+    group: root
+    mode: '0775'
+  become: yes
+- name: Ensure defaults file for options exists
+  ansible.builtin.file:
+    path: /etc/defaults/quagga
+    state: touch
+    access_time: preserve
+    modification_time: preserve
+  become: yes
+- name: Ensure vtysh is the default console
+  ansible.builtin.file:
+    path: /root/startvtysh
+    state: touch
+    access_time: preserve
+    modification_time: preserve
+  become: yes
+  when: quagga.vtysh_is_default_shell
+- name: Ensure quagga configuration for vtysh is current
+  ansible.builtin.template:
+    dest: /etc/network/quagga/vtysh.conf
+    src: "vtysh.conf.j2"
+    owner: quagga
+    group: "quaggavty"
+    mode: '0644'
+  become: yes
+- name: Ensure quagga configuration is current ({{ quagga_server.name }})
+  ansible.builtin.template:
+    dest: /etc/network/quagga/{{ quagga_server.name }}.conf
+    src: "{{ quagga_server.name }}.conf.j2"
+    owner: quagga
+    group: quagga
+    mode: '0644'
+  become: yes
+  notify:
+    - restart_router
+    - wait_for_convergence
+  loop: "{{ quagga.servers }}"
+  loop_control:
+    loop_var: quagga_server
+    label: "{{ quagga_server.name }}"
+- name: Ensure runit support for {{ quagga_server.name }} is installed and enabled
+  ansible.builtin.include_role:
+    name: runit-service
+  vars:
+    service:
+      name: "{{ quagga_server.name }}"
+      startdefaultsfile: /etc/default/quagga
+      startcmd: "/usr/sbin/{{ quagga_server.name }} ${{ quagga_server.name | upper() }}_OPTS -f /etc/quagga/{{ quagga_server.name }}.conf"
+      enabled: "{{ quagga_server.enabled }}"
+      enablednotify: wait_for_convergence
+  loop: "{{ quagga.servers }}"
+  loop_control:
+    loop_var: quagga_server
+    label: "{{ quagga_server.name }}"

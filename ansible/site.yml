@@ -6,3 +6,50 @@
       tags: baseline
     - role: virtualization_host
       tags: virtualization_host
+    - role: gns3_host
+      tags: gns3_host
+
+- name: Ensure virtual lab environment for networkplus is configured
+  hosts: localhost
+  tags: networkplus
+
+  roles:
+    - role: vagrantfile_networkplus
+      tags: labenv_networkplus
+
+  post_tasks:
+    - name: Ensure the required Vagrant baseboxes have been built
+      include_role:
+        name: basebox
+        apply:
+          tags: basebox
+      vars:
+        boxes:
+          - { distro: debian, version: "11.1.0", configuration: default }
+          - { distro: pfsense, version: "2.6.0b", configuration: default }
+      tags: basebox
+
+- name: Ensure virtual lab environment for rhcsa is configured
+  hosts: localhost
+  tags: rhcsa
+
+  roles:
+    - role: vagrantfile_rhcsa
+      vars:
+        distro: rocky
+        version: "8.5"
+        iso_name: "Rocky-8.5-x86_64-dvd1.iso"
+      tags: labenv_rhcsa
+
+  post_tasks:
+    - name: Ensure the required Vagrant baseboxes have been built
+      include_role:
+        name: basebox
+        apply:
+          tags: basebox
+      vars:
+        boxes:
+          - { distro: rocky, version: "8.5", configuration: core }
+          - { distro: rocky, version: "8.5", configuration: minimal }
+          - { distro: rocky, version: "8.5", configuration: gse }
+      tags: basebox
