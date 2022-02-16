@@ -3,7 +3,8 @@
 # ANSIBLE_CONTROLLER='true' is added to the environment when the
 # container is created.
 
-ORIGINAL_DIR=$PWD
+DEMOREPO=${DEMOREPO:-https://github.com/dmbrownlee/demo.git}
+DEMOBRANCH=${DEMOBRANCH:-release}
 
 # Ensure git and ansible is installed on Alpine Linux
 [ -f /etc/alpine-release ] &&
@@ -11,26 +12,20 @@ ORIGINAL_DIR=$PWD
   ( [ -h /usr/bin/ansible-playbook ] || sudo apk add --no-cache ansible )
 
 # Ensure we're working with the most recent repo commit
+ORIGINAL_DIR=$PWD
 if [ ! -d $HOME/labnetwork ]; then
   mkdir $HOME/labnetwork \
   && cd $HOME/labnetwork \
-  && git init -b main \
+  && git init -b $DEMOBRANCH \
   && git sparse-checkout init \
   && git sparse-checkout set playbooks/ \
-  && git remote add origin https://github.com/dmbrownlee/demo.git \
-  && git pull origin release \
-  && git checkout release
+  && git remote add origin $DEMOREPO \
+  && git fetch origin \
+  && git checkout -t origin/$DEMOBRANCH -b $DEMOBRANCH
 else
-  cd $HOME/labnetwork/playbooks \
-  && git pull
-  echo
-  diff -q $HOME/configure_network $HOME/labnetwork/playbooks/configure_network
-  if [ $? -ne 0 ]; then
-    cp $HOME/playbooks/configure_network $HOME/configure_network
-    echo "Setup script updated"
-    echo
-  fi
+  cd $HOME/labnetwork && git pull
 fi
+cd $ORIGINAL_DIR
 
 if [[ $# -ne 0 ]]; then
   PROJECTNAME=${1}
@@ -53,4 +48,3 @@ echo
 read -p "Press enter when you are ready to continue (Ctrl-c to abort)." a
 
 cd $HOME/labnetwork/playbooks/projects/$PROJECTNAME && ansible-playbook -k -K site.yml
-cd $ORIGINAL_DIR
